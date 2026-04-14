@@ -30,15 +30,9 @@ Add to your `.env` file:
 FAL_KEY=your-fal-ai-key-here
 ```
 
-### 3. (Optional) File Upload Key
+### 3. File Upload (Included)
 
-Seedance needs **publicly accessible URLs** for reference images. If you have a Kie AI account, add:
-
-```
-KIE_API_KEY=your-kie-ai-key-here
-```
-
-Alternatives: any file hosting that returns a public URL (litterbox, S3, etc).
+Seedance needs **publicly accessible URLs** for reference images. Fal AI includes its own CDN upload — no extra accounts or keys needed. Your `FAL_KEY` handles both generation and file upload.
 
 > **Want a full Generations tab with gallery, styles panel, and multi-model support (Kling, Veo, GPT Image, Nano Banana)?** Check out the Rubric dashboard at [robonuggets.com](https://robonuggets.com).
 
@@ -240,9 +234,30 @@ app_url = data["results"][0]["trackViewUrl"]
 
 ### Step 2: Upload for Public URL
 
-Seedance needs publicly accessible URLs. Upload via any service that returns a URL.
+Seedance needs publicly accessible URLs for reference images. Use Fal AI's built-in CDN upload (default) — no extra accounts needed.
 
-**Using Kie AI (if you have a key):**
+**Fal AI CDN (default — uses your existing FAL_KEY):**
+
+```bash
+# Step 1: Initiate upload
+INIT=$(curl -s -X POST "https://rest.alpha.fal.ai/storage/upload/initiate" \
+  -H "Authorization: Key $FAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"file_name":"my-screenshot.png","content_type":"image/png"}')
+
+# Extract URLs from response
+FILE_URL=$(echo "$INIT" | python -c "import sys,json; print(json.load(sys.stdin)['file_url'])")
+UPLOAD_URL=$(echo "$INIT" | python -c "import sys,json; print(json.load(sys.stdin)['upload_url'])")
+
+# Step 2: Upload the file
+curl -s -X PUT "$UPLOAD_URL" \
+  -H "Content-Type: image/png" \
+  --data-binary @/path/to/screenshot.png
+```
+
+Use `FILE_URL` as the public URL in your Seedance API calls. Hosted on `v3b.fal.media` with long-lived caching. Included with your Fal AI account — no extra cost.
+
+**Alternative: Kie AI (if you have a key):**
 
 ```bash
 curl -s -X POST "https://kieai.redpandaai.co/api/file-stream-upload" \
@@ -252,9 +267,9 @@ curl -s -X POST "https://kieai.redpandaai.co/api/file-stream-upload" \
   -F "fileName=my-screenshot.png"
 ```
 
-Returns `downloadUrl` — use that as the public URL. Files expire after 3 days.
+Returns `downloadUrl`. Files expire after 3 days.
 
-**Using litterbox (no account needed):**
+**Alternative: Litterbox (no account needed):**
 
 ```bash
 curl -s -F "reqtype=fileupload" -F "time=1h" \
