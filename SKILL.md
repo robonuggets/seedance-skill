@@ -1,6 +1,6 @@
 ---
 name: seedance
-description: Generate cinematic motion graphics videos using ByteDance Seedance 2.0 via Fal AI. Covers reference-to-video, text-to-video, liquid glass prompting, App Store screenshot scraping, and the full pipeline from screenshot to finished promo clip. Triggers on seedance, cdance, motion graphics, liquid glass, app promo, video promo.
+description: Generate cinematic motion graphics videos using ByteDance Seedance 2.0 via Fal AI. Covers image-to-video, reference-to-video, text-to-video, liquid glass prompting, App Store screenshot scraping, and the full pipeline from screenshot to finished promo clip. Triggers on seedance, cdance, motion graphics, liquid glass, app promo, video promo.
 ---
 
 # Seedance — Seedance 2.0 Motion Graphics Skill
@@ -9,7 +9,8 @@ Generate cinematic motion graphics videos using ByteDance's Seedance 2.0 model v
 
 ## What This Skill Does
 
-- Generate **reference-to-video** motion graphics from app screenshots
+- Generate **image-to-video** animations from a single image (with optional end frame control)
+- Generate **reference-to-video** motion graphics from multiple app screenshots
 - Generate **text-to-video** motion graphics from pure prompts
 - Scrape **App Store screenshots** automatically for any iOS app
 - Upload reference images to get **public URLs** for the API
@@ -45,10 +46,11 @@ Alternatives: any file hosting that returns a public URL (litterbox, S3, etc).
 
 ## Endpoints
 
-Seedance 2.0 has 4 endpoints on Fal AI. **Default to Pro** — it's only ~25% more expensive but noticeably better quality.
+Seedance 2.0 has 5 endpoints on Fal AI. **Default to Pro** — it's only ~25% more expensive but noticeably better quality.
 
 | Type | Tier | Endpoint | $/sec (720p) |
 |------|------|----------|-------------|
+| **Image-to-video** | **Pro** | `fal.run/bytedance/seedance-2.0/image-to-video` | $0.30 |
 | Reference-to-video | **Pro (default)** | `fal.run/bytedance/seedance-2.0/reference-to-video` | $0.30 |
 | Reference-to-video | Fast (testing) | `fal.run/bytedance/seedance-2.0/fast/reference-to-video` | $0.24 |
 | Text-to-video | **Pro (default)** | `fal.run/bytedance/seedance-2.0/text-to-video` | $0.30 |
@@ -56,7 +58,8 @@ Seedance 2.0 has 4 endpoints on Fal AI. **Default to Pro** — it's only ~25% mo
 
 ### When to Use Which
 
-- **Reference-to-video** — you have screenshots, logos, or visual assets to base the video on. This is the primary mode.
+- **Image-to-video** — you have a single image and want to animate it with motion. Supports start + end frame control for precise transitions. Best for: animating a hero image, creating A→B transitions between two states, lip-sync animations.
+- **Reference-to-video** — you have multiple screenshots, logos, or visual assets to blend into a motion graphics piece. This is the primary mode for promo videos.
 - **Text-to-video** — no visual references available (e.g. GitHub repos, docs pages, abstract concepts). Pure prompt-driven.
 
 ---
@@ -340,6 +343,96 @@ Same parameters minus `image_urls`, `video_urls`, `audio_urls`.
 
 ---
 
+## Image-to-Video (Single Image Animation)
+
+Animate a single still image into cinematic video. Unlike reference-to-video (which blends multiple images into motion graphics), image-to-video takes **one image** and brings it to life with motion described in the prompt.
+
+**Endpoint:** `https://fal.run/bytedance/seedance-2.0/image-to-video`
+
+### Parameters
+
+| Param | Required | Options | Default |
+|-------|----------|---------|---------|
+| `prompt` | Yes | string — describe the desired motion/action | — |
+| `image_url` | Yes | single public URL (JPEG, PNG, WebP, max 30MB) | — |
+| `end_image_url` | No | public URL for the last frame (enables A→B transitions) | — |
+| `resolution` | No | `"480p"`, `"720p"` | `"720p"` |
+| `duration` | No | `"auto"`, `"4"` – `"15"` | `"auto"` |
+| `aspect_ratio` | No | `"auto"`, `"21:9"`, `"16:9"`, `"4:3"`, `"1:1"`, `"3:4"`, `"9:16"` | `"auto"` |
+| `generate_audio` | No | boolean — includes SFX, ambient, and lip-sync | `true` |
+| `seed` | No | integer | random |
+
+### Key Differences from Reference-to-Video
+
+- **Single `image_url`** (string) instead of `image_urls` (array)
+- **`end_image_url`** — optional end frame for controlled transitions (reference-to-video doesn't have this)
+- **Lip-sync support** — audio generation includes lip-synced speech when faces are present
+- No `@Image1`/`@Image2` notation — just one image as the starting frame
+
+### When to Use Image-to-Video vs Reference-to-Video
+
+| Scenario | Use |
+|----------|-----|
+| Animate a single screenshot/photo | **Image-to-video** |
+| Transition between two states (before/after, light/dark mode) | **Image-to-video** with `end_image_url` |
+| Lip-sync a character or avatar | **Image-to-video** |
+| Blend 3-5 screenshots into a promo reel | Reference-to-video |
+| Glass morphism motion graphics from multiple UI views | Reference-to-video |
+
+### Usage Example
+
+```bash
+cat > /tmp/seedance_i2v.json << 'ENDJSON'
+{
+  "prompt": "The dashboard interface comes alive — UI elements gently float and shift, glass reflections ripple across panels, accent lighting pulses through the layout. Smooth cinematic camera drift. No text, no logos.",
+  "image_url": "https://your-upload-url/screenshot.png",
+  "resolution": "720p",
+  "duration": "4",
+  "aspect_ratio": "16:9",
+  "generate_audio": false
+}
+ENDJSON
+
+curl -s -X POST "https://fal.run/bytedance/seedance-2.0/image-to-video" \
+  -H "Authorization: Key $FAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/seedance_i2v.json
+```
+
+### Start + End Frame Example (A→B Transition)
+
+Animate from one state to another — e.g. light mode to dark mode, empty dashboard to populated:
+
+```bash
+cat > /tmp/seedance_i2v_transition.json << 'ENDJSON'
+{
+  "prompt": "The interface smoothly transitions — colors shift, panels rearrange, elements morph fluidly from the starting layout to the final layout. Cinematic, smooth, continuous motion.",
+  "image_url": "https://your-upload-url/state_before.png",
+  "end_image_url": "https://your-upload-url/state_after.png",
+  "resolution": "720p",
+  "duration": "6",
+  "aspect_ratio": "16:9",
+  "generate_audio": false
+}
+ENDJSON
+
+curl -s -X POST "https://fal.run/bytedance/seedance-2.0/image-to-video" \
+  -H "Authorization: Key $FAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/seedance_i2v_transition.json
+```
+
+### Prompting Tips for Image-to-Video
+
+- **Describe the motion**, not the image — the model already sees the image. Focus on what should move, how, and where.
+- **"Cinematic camera drift"** works well for subtle product shots
+- **"Elements gently float and shift"** for UI animation
+- For lip-sync: describe the speech/emotion in the prompt, enable `generate_audio: true`
+- Same negative guidance applies: `"No text, no logos, no words"` to prevent garbled text
+- The `end_image_url` feature is powerful for before/after reveals, mode switches, or showing a workflow progression
+
+---
+
 ## Prompt Patterns Library
 
 ### Floating Desktop Screens (Best for SaaS/Apps)
@@ -370,6 +463,66 @@ refractions. No text, no logos. Style: liquid glass morphism, premium
 depth, self-luminous forms on absolute black.
 ```
 
+### Floating Desktop Screens — Rubric (Tested)
+
+Used for the Rubric dashboard promo. 3 refs (Flows + Skill Tree + Agent Icons), Pro 720p 4s, audio on.
+
+```
+Design a motion-graphics style ad based on these images, using
+multiple camera angles — close-ups that highlight the glass
+reflections, various tap and click interaction animations, and a
+focus on this glossy glass UI design language. @Image1 is a desktop
+application dashboard showing agent workflow connections on a
+hexagonal grid. @Image2 is a desktop application showing a network
+graph visualization with connected nodes. @Image3 is a desktop
+application showing a grid of colorful pixel art icons. Show the
+desktop screens floating in 3D space on a pure black background,
+tilted at slight angles like a MacBook product shot. The UI elements
+on screen become translucent glass with reflections and refractions.
+No text, no logos, no words. Style: liquid glass morphism, Apple
+product ad, premium desktop app showcase, self-luminous forms on
+absolute black, orange accent lighting.
+```
+
+### iPad Product Reveal — Rubric (Tested)
+
+Real device with glass screen content. 2 refs (hero + Flows), Pro 720p 4s, audio on. Key detail: explicitly call out "real solid device" so the iPad frame stays solid while only the screen gets glass effect.
+
+```
+Design a motion-graphics style ad using glossy liquid glass design
+language. Pure black background, nothing else. A realistic iPad Pro
+with visible black bezels and physical frame floating in empty black
+space, tilted at a cinematic angle like an Apple product shot. The
+iPad is a real solid device with clear borders and edges, not made
+of glass. Only the screen content has the glass effect. The iPad
+screen displays @Image1 and @Image2 — a dark dashboard with orange
+branding, hexagonal grid, and agent flow connections. The UI elements
+on the screen are translucent glass with reflections and refractions.
+Light catches the physical edges of the iPad frame. The device
+slowly rotates. No text, no logos, no words. Style: Apple keynote
+product reveal, real device with glass UI on screen, premium 3D
+depth, floating in absolute black void, orange accent lighting.
+```
+
+### Abstract Glass Network — Rubric (Tested)
+
+No device frame — pure abstract glass. 3 refs (Flows + Icons + Skill Tree), Fast 720p 4s, no audio.
+
+```
+Design a motion-graphics style ad using glossy liquid glass design
+language. Pure black background. @Image1 is a dark dashboard with
+hexagonal grid and agent connections. @Image2 is a grid of colorful
+pixel art bot icons. @Image3 is a network graph of agents with
+radiating connections. The hexagonal grid from Image 1 becomes
+translucent glass honeycomb, each cell refracting light. Colorful
+bot icons from Image 2 appear as glass tiles catching light. The
+network from Image 3 pulses with glass fiber-optic connections,
+light flowing between nodes. Multiple camera angles: close-up on
+glass reflections, pull back to reveal the full network. Style:
+liquid glass morphism, Apple Vision Pro aesthetic, premium 3D depth,
+self-luminous forms on absolute black, orange accent lighting.
+```
+
 ### Abstract Motion Identity (Based on @oggii_0 Style)
 
 ```
@@ -387,6 +540,78 @@ forms on absolute black, no grain, no shadows.
 Style: [brand] motion identity, mathematical precision.
 Mood: calm, inevitable, intelligent, premium.
 ```
+
+---
+
+## Batch Generation Workflow
+
+When generating promos for multiple projects at once, follow this process:
+
+### Step 1: Assess Each Project
+
+For each app/project, determine:
+- **Do screenshots exist?** Website or App Store → reference-to-video. GitHub repo or docs-only → text-to-video.
+- **What's the visual anchor?** Dark UI = strong liquid glass match. Colorful icons = glass tiles. Geometric layout = glass honeycomb.
+- **What aspect ratio?** Phone app → 9:16. Desktop/SaaS → 16:9. Abstract → 16:9.
+
+### Step 2: Test Batch (Cheap)
+
+Run all projects at **Fast tier, 480p, 4 seconds** first. This keeps each test under ~$0.81. For a 5-project batch, total test cost is ~$4-5.
+
+### Step 3: Review & Promote Winners
+
+Watch all test outputs. The ones that work well, re-generate at **Pro tier, 720p, longer duration** (8-10s). This is where you spend the real budget.
+
+### Step 4: Post-Production
+
+Overlay logos and text in your video editor. The Seedance output is the visual base — branding goes on top in post.
+
+### Example: 5-Project Test Batch
+
+| # | Project | Type | Rationale |
+|---|---------|------|-----------|
+| 1 | GitHub repo (no UI) | text-to-video | No screenshots, abstract concept |
+| 2 | Dark landing page | ref-to-video | Dark hero screenshot = strong glass match |
+| 3 | Docs site | text-to-video | No strong visual to reference |
+| 4 | GitHub repo (abstract) | text-to-video | Geometric concept works well prompt-only |
+| 5 | iOS app | ref-to-video | App Store screenshots scraped + logo ref |
+
+All Fast, 480p, 4s (except iOS app at 6s for more screen time). Total: ~$5.50.
+
+---
+
+## Cost Estimation
+
+Before generating, estimate your cost:
+
+### Quick Formula
+
+```
+Cost = duration_seconds × $0.30 (Pro) or $0.24 (Fast) at 720p
+```
+
+480p is roughly 30% cheaper than 720p.
+
+### Estimation Table
+
+| What you're doing | Recommended settings | Est. cost |
+|-------------------|---------------------|-----------|
+| Quick concept test | Fast, 480p, 4s | ~$0.81 |
+| Single screenshot test | Pro, 720p, 4s | ~$1.21 |
+| Short promo clip | Pro, 720p, 6s | ~$1.81 |
+| Production promo | Pro, 720p, 10s | ~$3.03 |
+| Long showcase | Pro, 720p, 15s | ~$4.54 |
+| 5-project test batch | Fast, 480p, 4-6s each | ~$4-6 |
+| 3-video production set | Pro, 720p, 4s each | ~$3.63 |
+
+### Before You Generate Checklist
+
+1. **Pick your tier** — Fast for testing, Pro for production
+2. **Pick your resolution** — 480p for tests, 720p for keepers
+3. **Pick your duration** — 4s minimum, 10s sweet spot, 15s max
+4. **Count your refs** — 1 image per 2 seconds of video (max 5)
+5. **Audio on or off?** — Same cost either way, but abstract visuals may trigger content policy. Default off for tests.
+6. **Multiply it out** — duration × rate = cost per video
 
 ---
 
@@ -410,6 +635,14 @@ Fal AI uses `Authorization: Key` (not Bearer):
 ```
 Authorization: Key YOUR_FAL_KEY
 ```
+
+---
+
+## Community Prompts
+
+For inspiration beyond liquid glass, check the community collection:
+
+**[awesome-seedance-2-prompts](https://github.com/YouMind-OpenLab/awesome-seedance-2-prompts)** — 1,719 curated Seedance 2.0 prompts covering cinematic, anime, commercial, and experimental styles. Includes video examples and a searchable web gallery at [youmind.com](https://youmind.com/en-US/seedance-2-0-prompts).
 
 ---
 
